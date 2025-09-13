@@ -1,0 +1,15 @@
+.wrap h1 {
+  font-size: 1.8rem;
+  color: #1e2a38;
+}
+
+.form-table th {
+  width: 200px;
+  padding-right: 20px;
+}
+
+input[type="text"], select {
+  width: 300px;
+  padding: 6px;
+  font-size: 1rem;
+}

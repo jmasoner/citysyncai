@@ -1,0 +1,21 @@
+<section class="demo">
+  <h2>Live Demo</h2>
+  <p>Enter a city name and see AI-powered content instantly:</p>
+  <input type="text" id="demoCity" placeholder="e.g. Austin, TX" />
+  <select id="demoType">
+    <option value="overview">Overview</option>
+    <option value="services">Services</option>
+    <option value="testimonials">Testimonials</option>
+  </select>
+  <button onclick="runDemo()">Generate</button>
+  <div id="demoOutput"></div>
+
+  <script>
+    function runDemo() {
+      const city = document.getElementById('demoCity').value;
+      const type = document.getElementById('demoType').value;
+      document.getElementById('demoOutput').innerHTML =
+        `<h3>${city} (${type})</h3><p>This is mock AI content for ${city}.</p>`;
+    }
+  </script>
+</section>
