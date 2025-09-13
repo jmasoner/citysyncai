@@ -1,0 +1,43 @@
+
+---
+
+## 🖥️ 3. Admin Settings Panel UI (HTML Scaffold)
+
+```html
+<div class="wrap">
+  <h1>CitySyncAI Settings</h1>
+  <form method="post" action="options.php">
+    <?php settings_fields('citysyncai_options'); ?>
+    <?php do_settings_sections('citysyncai'); ?>
+
+    <table class="form-table">
+      <tr>
+        <th scope="row">Default Content Type</th>
+        <td>
+          <select name="citysyncai_content_type">
+            <option value="overview">Overview</option>
+            <option value="services">Local Services</option>
+            <option value="testimonials">Testimonials</option>
+            <option value="custom">Custom AI Prompt</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row">Enable Gemini SEO Schema</th>
+        <td><input type="checkbox" name="citysyncai_enable_schema" value="1" /></td>
+      </tr>
+      <tr>
+        <th scope="row">Sync Frequency</th>
+        <td>
+          <select name="citysyncai_sync_frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="manual">Manual Only</option>
+          </select>
+        </td>
+      </tr>
+    </table>
+
+    <?php submit_button(); ?>
+  </form>
+</div>
