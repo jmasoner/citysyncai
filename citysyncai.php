@@ -41,3 +41,9 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true',
     ]);
 });
+register_activation_hook(__FILE__, function () {
+    flush_rewrite_rules();
+});
+register_deactivation_hook(__FILE__, function () {
+    flush_rewrite_rules();
+});

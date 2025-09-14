@@ -1,4 +1,8 @@
 <?php
+/**
+ * Admin Settings Panel for CitySyncAI Plugin
+ */
+
 function citysyncai_register_settings() {
     register_setting('citysyncai_options', 'citysyncai_content_type');
     register_setting('citysyncai_options', 'citysyncai_ai_provider');
@@ -12,6 +16,7 @@ function citysyncai_register_settings() {
     register_setting('citysyncai_options', 'citysyncai_sync_frequency');
 
     add_settings_section('citysyncai_main', 'CitySyncAI Settings', null, 'citysyncai');
+
     add_settings_field('ai_provider', 'AI Provider', 'citysyncai_ai_provider_field', 'citysyncai', 'citysyncai_main');
     add_settings_field('openai_key', 'OpenAI API Key', 'citysyncai_openai_key_field', 'citysyncai', 'citysyncai_main');
     add_settings_field('gemini_key', 'Gemini API Key', 'citysyncai_gemini_key_field', 'citysyncai', 'citysyncai_main');
@@ -25,29 +30,6 @@ function citysyncai_register_settings() {
 }
 add_action('admin_init', 'citysyncai_register_settings');
 
-function citysyncai_content_type_field() {
-    $value = get_option('citysyncai_content_type', 'overview');
-    echo '<select name="citysyncai_content_type">
-        <option value="overview"' . selected($value, 'overview', false) . '>Overview</option>
-        <option value="services"' . selected($value, 'services', false) . '>Local Services</option>
-        <option value="testimonials"' . selected($value, 'testimonials', false) . '>Testimonials</option>
-        <option value="custom"' . selected($value, 'custom', false) . '>Custom AI Prompt</option>
-    </select>';
-}
-
-function citysyncai_schema_field() {
-    $value = get_option('citysyncai_enable_schema', false);
-    echo '<input type="checkbox" name="citysyncai_enable_schema" value="1"' . checked($value, true, false) . ' />';
-}
-
-function citysyncai_sync_field() {
-    $value = get_option('citysyncai_sync_frequency', 'manual');
-    echo '<select name="citysyncai_sync_frequency">
-        <option value="daily"' . selected($value, 'daily', false) . '>Daily</option>
-        <option value="weekly"' . selected($value, 'weekly', false) . '>Weekly</option>
-        <option value="manual"' . selected($value, 'manual', false) . '>Manual Only</option>
-    </select>';
-}
 function citysyncai_ai_provider_field() {
     $provider = get_option('citysyncai_ai_provider', 'openai');
     echo '<select name="citysyncai_ai_provider">
@@ -88,4 +70,54 @@ function citysyncai_genspark_key_field() {
 function citysyncai_grok_key_field() {
     $key = get_option('citysyncai_grok_key', '');
     echo '<input type="text" name="citysyncai_grok_key" value="' . esc_attr($key) . '" />';
+}
+
+function citysyncai_content_type_field() {
+    $value = get_option('citysyncai_content_type', 'overview');
+    echo '<select name="citysyncai_content_type">
+        <option value="overview"' . selected($value, 'overview', false) . '>Overview</option>
+        <option value="services"' . selected($value, 'services', false) . '>Local Services</option>
+        <option value="testimonials"' . selected($value, 'testimonials', false) . '>Testimonials</option>
+        <option value="custom"' . selected($value, 'custom', false) . '>Custom AI Prompt</option>
+    </select>';
+}
+
+function citysyncai_schema_field() {
+    $value = get_option('citysyncai_enable_schema', false);
+    echo '<input type="checkbox" name="citysyncai_enable_schema" value="1"' . checked($value, true, false) . ' />';
+}
+
+function citysyncai_sync_field() {
+    $value = get_option('citysyncai_sync_frequency', 'manual');
+    echo '<select name="citysyncai_sync_frequency">
+        <option value="daily"' . selected($value, 'daily', false) . '>Daily</option>
+        <option value="weekly"' . selected($value, 'weekly', false) . '>Weekly</option>
+        <option value="manual"' . selected($value, 'manual', false) . '>Manual Only</option>
+    </select>';
+}
+
+function citysyncai_add_settings_page() {
+    add_options_page(
+        'CitySyncAI Settings',
+        'CitySyncAI',
+        'manage_options',
+        'citysyncai',
+        'citysyncai_render_settings_page'
+    );
+}
+add_action('admin_menu', 'citysyncai_add_settings_page');
+
+function citysyncai_render_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1>CitySyncAI Settings</h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('citysyncai_options');
+            do_settings_sections('citysyncai');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
 }
