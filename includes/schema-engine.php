@@ -1,97 +1,67 @@
 <?php
 /**
- * Dispatcher for modular schema injection in CitySyncAI.
+ * Schema Engine for CitySyncAI
+ * Handles global templates and per-post overrides.
  */
 
-function citysyncai_inject_schema() {
-    if (!is_singular('citysyncai_page')) {
+defined('ABSPATH') || exit;
+
+// 🔹 Add meta box for per-post schema override
+add_action('add_meta_boxes', function () {
+    add_meta_box(
+        'citysyncai_schema_meta',
+        'CitySyncAI Schema Override',
+        'citysyncai_render_schema_meta_box',
+        ['post', 'page'],
+        'normal',
+        'default'
+    );
+});
+
+function citysyncai_render_schema_meta_box($post) {
+    $custom_schema = get_post_meta($post->ID, '_citysyncai_custom_schema', true);
+    wp_nonce_field('citysyncai_save_schema', 'citysyncai_schema_nonce');
+
+    echo '<textarea name="citysyncai_custom_schema" style="width:100%;height:200px;">' . esc_textarea($custom_schema) . '</textarea>';
+    echo '<p><em>Paste custom JSON-LD schema here. Leave blank to use global template.</em></p>';
+}
+
+// 🔹 Save schema override
+add_action('save_post', function ($post_id) {
+    if (!isset($_POST['citysyncai_schema_nonce']) || !wp_verify_nonce($_POST['citysyncai_schema_nonce'], 'citysyncai_save_schema')) {
         return;
     }
 
-    // Determine schema type from post meta or fallback to plugin setting
-    $post_id = get_the_ID();
-    $meta_type = get_post_meta($post_id, 'citysyncai_type', true);
-    $default_type = get_option('citysyncai_schema_type', 'LocalBusiness');
-    $schema_type = $meta_type ?: $default_type;
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 
-    // Build path to schema file
-    $schema_file = plugin_dir_path(__FILE__) . 'schema-types/' . strtolower($schema_type) . '.php';
-
-    // Load and inject schema
-    if (file_exists($schema_file)) {
-        $schema = include $schema_file;
-
-        if (is_array($schema)) {
-            echo '<script type="application/ld+json">' . wp_json_encode($schema) . '</script>';
-        }
+    if (isset($_POST['citysyncai_custom_schema'])) {
+        update_post_meta($post_id, '_citysyncai_custom_schema', sanitize_textarea_field($_POST['citysyncai_custom_schema']));
     }
-}
-add_action('wp_head', 'citysyncai_inject_schema');
-
-/**
- * Optional: REST endpoint for external schema export
- */
-function citysyncai_rest_schema_export($request) {
-    $post_id = $request->get_param('id');
-    if (!$post_id || !get_post($post_id)) {
-        return new WP_Error('invalid_post', 'Valid post ID required', ['status' => 400]);
-    }
-
-    $meta_type = get_post_meta($post_id, 'citysyncai_type', true);
-    $default_type = get_option('citysyncai_schema_type', 'LocalBusiness');
-    $schema_type = $meta_type ?: $default_type;
-
-    $schema_file = plugin_dir_path(__FILE__) . 'schema-types/' . strtolower($schema_type) . '.php';
-
-    if (file_exists($schema_file)) {
-        setup_postdata(get_post($post_id)); // Ensure template functions work
-        $schema = include $schema_file;
-        wp_reset_postdata();
-
-        return is_array($schema) ? rest_ensure_response($schema) : new WP_Error('invalid_schema', 'Schema not valid', ['status' => 500]);
-    }
-
-    return new WP_Error('missing_schema', 'Schema file not found', ['status' => 404]);
-}
-add_action('rest_api_init', function () {
-    register_rest_route('citysyncai/v1', '/schema', [
-        'methods' => 'GET',
-        'callback' => 'citysyncai_rest_schema_export',
-        'permission_callback' => '__return_true',
-    ]);
 });
-function citysyncai_generate_schema_from_ai($request) {
-    $post_id = $request->get_param('id');
-    $post = get_post($post_id);
-    if (!$post) return new WP_Error('invalid_post', 'Post not found', ['status' => 404]);
+add_action('add_meta_boxes', function () {
+    add_meta_box(
+        'citysyncai_schema_type_meta',
+        'CitySyncAI Schema Type',
+        'citysyncai_render_schema_type_meta_box',
+        ['post', 'page'],
+        'side',
+        'default'
+    );
+});
 
-    $content = $post->post_content;
-    $title = get_the_title($post_id);
-    $city = get_post_meta($post_id, 'citysyncai_city', true);
+function citysyncai_render_schema_type_meta_box($post) {
+    $selected = get_post_meta($post->ID, '_citysyncai_schema_type', true) ?: get_option('citysyncai_schema_type', 'LocalBusiness');
+    $types = ['LocalBusiness', 'Event', 'Service', 'Review'];
 
-    $prompt = "Generate a schema.org JSON-LD block for a local business named '{$title}' located in '{$city}'. Use the following content for context:\n\n{$content}";
-
-    // Replace this with your actual AI provider logic
-    $schema_json = citysyncai_call_ai_provider($prompt);
-
-    if (!$schema_json) return new WP_Error('ai_failed', 'AI did not return schema', ['status' => 500]);
-
-    update_post_meta($post_id, '_citysyncai_generated_schema', $schema_json);
-
-    return rest_ensure_response(json_decode($schema_json, true));
+    echo '<select name="citysyncai_schema_type">';
+    foreach ($types as $type) {
+        echo "<option value='$type'" . selected($selected, $type, false) . ">$type</option>";
+    }
+    echo '</select>';
 }
-function citysyncai_call_ai_provider($prompt) {
-    $provider = get_option('citysyncai_api_provider', 'gemini');
-    $api_key = get_option('citysyncai_api_key', '');
 
-    // Stub: Replace with actual Gemini/OpenAI/Claude call
-    return json_encode([
-        "@context" => "https://schema.org",
-        "@type" => "LocalBusiness",
-        "name" => "Stub Business",
-        "address" => [
-            "@type" => "PostalAddress",
-            "addressLocality" => "Stub City"
-        ]
-    ]);
-}
+add_action('save_post', function ($post_id) {
+    if (isset($_POST['citysyncai_schema_type'])) {
+        update_post_meta($post_id, '_citysyncai_schema_type', sanitize_text_field($_POST['citysyncai_schema_type']));
+    }
+});
