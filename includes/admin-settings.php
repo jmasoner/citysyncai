@@ -73,7 +73,7 @@ function citysyncai_register_settings() {
         echo '<input type="url" name="citysyncai_webhook_url" value="' . esc_attr($url) . '" />';
     }, 'citysyncai', 'citysyncai_main');
 
-    // Preview tab
+    // AI Preview
     add_settings_section('citysyncai_preview_section', 'AI Preview', function () {
         $provider = get_option('citysyncai_ai_provider', 'openai');
         $type     = get_option('citysyncai_content_type', 'overview');
@@ -89,7 +89,7 @@ function citysyncai_register_settings() {
         }
     }, 'citysyncai');
 
-    // Schema validation tab
+    // Schema Validation
     add_settings_section('citysyncai_schema_validation', 'Schema Validation', function () {
         $response = wp_remote_get(rest_url('citysyncai/v1/validate-schema'));
         $data = json_decode(wp_remote_retrieve_body($response), true);
@@ -120,9 +120,28 @@ function citysyncai_add_settings_page() {
 add_action('admin_menu', 'citysyncai_add_settings_page');
 
 function citysyncai_render_settings_page() {
-    echo '<div class="wrap"><h1>CitySyncAI Settings</h1><form method="post" action="options.php">';
+    echo '<div class="wrap"><h1>CitySyncAI Settings</h1>';
+    $screen = get_current_screen();
+    $screen->add_help_tab([
+        'id'      => 'citysyncai_overview',
+        'title'   => 'Overview',
+        'content' => '<p>CitySyncAI helps you generate SEO-optimized city pages using AI and structured schema.</p>',
+    ]);
+    $screen->add_help_tab([
+        'id'      => 'citysyncai_schema',
+        'title'   => 'Schema',
+        'content' => '<p>Select your schema type and optionally override it per post. Schema is injected as JSON-LD.</p>',
+    ]);
+    $screen->add_help_tab([
+        'id'      => 'citysyncai_ai',
+        'title'   => 'AI Content',
+        'content' => '<p>Choose your AI provider and content type. You can override AI output per post.</p>',
+    ]);
+
+    echo '<form method="post" action="options.php">';
     settings_fields('citysyncai_options');
     do_settings_sections('citysyncai');
     submit_button();
+    update_option('citysyncai_onboarding_complete', true);
     echo '</form></div>';
 }

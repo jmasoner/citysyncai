@@ -12,7 +12,6 @@ function citysyncai_rest_generate_content($request) {
     $content_type = sanitize_text_field($params['type'] ?? get_option('citysyncai_content_type', 'overview'));
     $city         = sanitize_text_field($params['city'] ?? '');
 
-    $prompt = $city ? "Generate SEO content for {$city} ({$content_type})" : "Generate SEO content for {$content_type}";
     $cache_key = 'citysyncai_' . md5($provider . '_' . $content_type . '_' . $city);
     $cached = get_transient($cache_key);
 
@@ -39,30 +38,34 @@ function citysyncai_rest_generate_content($request) {
         'content'      => $output,
     ];
 }
+register_rest_route('citysyncai/v1', '/export-markdown', [
+    'methods'  => 'GET',
+    'callback' => function () {
+        $posts = get_posts(['post_type' => ['post', 'page'], 'numberposts' => -1]);
+        $output = [];
+
+        foreach ($posts as $post) {
+            $schema = get_post_meta($post->ID, '_citysyncai_custom_schema', true);
+            $ai     = get_post_meta($post->ID, '_citysyncai_custom_ai', true);
+
+            $md = "## {$post->post_title}\n\n";
+            if ($ai) {
+                $md .= "**AI Content:**\n\n{$ai}\n\n";
+            }
+            if ($schema) {
+                $md .= "**Schema Markup:**\n\n```json\n{$schema}\n```\n\n";
+            }
+
+            $output[] = [
+                'post_id' => $post->ID,
+                'markdown' => $md,
+            ];
+        }
+
+        return $output;
+    },
+    'permission_callback' => '__return_true',
+]);
 
 // 🔹 Export schema
-function citysyncai_rest_schema_export($request) {
-    $post_id = $request->get_param('post_id') ?? 0;
-    $override = get_post_meta($post_id, '_citysyncai_custom_schema', true);
-
-    if ($override) {
-        return [
-            'schema_type' => 'custom',
-            'markup'      => $override,
-        ];
-    }
-
-    $schema_type = get_option('citysyncai_schema_type', 'LocalBusiness');
-    $template_path = plugin_dir_path(__DIR__) . '../templates/schema-' . strtolower($schema_type) . '.php';
-
-    ob_start();
-    if (file_exists($template_path)) {
-        include $template_path;
-    } else {
-        echo "<!-- Schema template not found: $schema_type -->";
-    }
-    $output = ob_get_clean();
-
-    return [
-        'schema_type' => $schema_type,
-        'markup'      => $
+function citysyncai_rest_schema_export($
