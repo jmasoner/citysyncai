@@ -153,3 +153,8 @@ add_action('enqueue_block_editor_assets', function () {
         true
     );
 });
+add_action('admin_notices', function () {
+    if (!get_option('citysyncai_onboarding_complete')) {
+        echo '<div class="notice notice-info"><p><strong>Welcome to CitySyncAI!</strong> Let’s configure your AI provider, schema type, and webhook. <a href="' . admin_url('options-general.php?page=citysyncai') . '">Start setup</a></p></div>';
+    }
+});

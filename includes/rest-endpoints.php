@@ -65,41 +65,4 @@ function citysyncai_rest_schema_export($request) {
 
     return [
         'schema_type' => $schema_type,
-        'markup'      => $output,
-    ];
-}
-register_rest_route('citysyncai/v1', '/export-schema', [
-    'methods'  => 'GET',
-    'callback' => 'citysyncai_rest_bulk_schema_export',
-    'permission_callback' => '__return_true',
-]);
-
-function citysyncai_rest_bulk_schema_export() {
-    $posts = get_posts(['post_type' => ['post', 'page'], 'numberposts' => -1]);
-    $output = [];
-
-    foreach ($posts as $post) {
-        $override = get_post_meta($post->ID, '_citysyncai_custom_schema', true);
-        $type = get_post_meta($post->ID, '_citysyncai_schema_type', true) ?: get_option('citysyncai_schema_type', 'LocalBusiness');
-        $template_path = plugin_dir_path(__DIR__) . "../templates/schema-" . strtolower($type) . ".php";
-
-        ob_start();
-        if ($override) {
-            echo $override;
-        } elseif (file_exists($template_path)) {
-            include $template_path;
-        }
-        $markup = ob_get_clean();
-
-        $output[] = [
-            'post_id' => $post->ID,
-            'title'   => $post->post_title,
-            'schema_type' => $type,
-            'markup'  => $markup,
-        ];
-    }
-
-    return $output;
-}
-
-// 🔹 Preview cached AI content
+        'markup'      => $
