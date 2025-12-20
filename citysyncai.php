@@ -17,13 +17,20 @@ define('CITYSYNCAI_DIR', plugin_dir_path(__FILE__));
 define('CITYSYNCAI_URL', plugin_dir_url(__FILE__));
 
 // 🔹 Includes
+require_once CITYSYNCAI_DIR . 'includes/log-engine.php';
+require_once CITYSYNCAI_DIR . 'includes/city-data.php';
+require_once CITYSYNCAI_DIR . 'includes/city-pages.php';
+require_once CITYSYNCAI_DIR . 'includes/faq-generator.php';
+require_once CITYSYNCAI_DIR . 'includes/testimonials-generator.php';
+require_once CITYSYNCAI_DIR . 'includes/address-checker.php';
+require_once CITYSYNCAI_DIR . 'includes/city-page-creator.php';
 require_once CITYSYNCAI_DIR . 'includes/admin-settings.php';
 require_once CITYSYNCAI_DIR . 'includes/ai-content-engine.php';
 require_once CITYSYNCAI_DIR . 'includes/schema-engine.php';
 require_once CITYSYNCAI_DIR . 'includes/rest-endpoints.php';
-require_once CITYSYNCAI_DIR . 'includes/log-engine.php';
 require_once CITYSYNCAI_DIR . 'includes/onboarding.php';
 require_once CITYSYNCAI_DIR . 'includes/readme-generator.php';
+require_once CITYSYNCAI_DIR . 'includes/bulk-generator.php';
 
 add_action('plugins_loaded', function () {
     load_plugin_textdomain('citysyncai', false, dirname(plugin_basename(__FILE__)) . '/languages');
@@ -34,6 +41,13 @@ add_action('admin_enqueue_scripts', function () {
     wp_enqueue_style('citysyncai-admin-style', CITYSYNCAI_URL . 'assets/css/admin-stule.css', [], CITYSYNCAI_VERSION);
 });
 
+// Frontend assets for city pages
+add_action('wp_enqueue_scripts', function () {
+    if (is_singular('citysyncai_city')) {
+        wp_enqueue_style('citysyncai-city-page', CITYSYNCAI_URL . 'assets/css/city-page.css', [], CITYSYNCAI_VERSION);
+    }
+});
+
 // 🔹 Shortcodes
 add_shortcode('citysyncai', 'citysyncai_render_combined');
 add_shortcode('citysyncai_block', 'citysyncai_render_ai_block');
@@ -41,10 +55,13 @@ add_shortcode('citysyncai_schema', 'citysyncai_render_schema_block');
 
 if (!function_exists('citysyncai_render_ai_block')) {
     function citysyncai_render_ai_block($atts = []) {
-        $provider = get_option('citysyncai_ai_provider', 'openai');
-        $type     = get_option('citysyncai_content_type', 'overview');
+        $atts = shortcode_atts([
+            'provider' => get_option('citysyncai_ai_provider', 'gemini'),
+            'type' => get_option('citysyncai_content_type', 'overview'),
+            'city' => '',
+        ], $atts);
         ob_start();
-        citysyncai_generate_ai_content($provider, $type);
+        citysyncai_generate_ai_content($atts['provider'], $atts['type'], $atts['city']);
         return ob_get_clean();
     }
 }
@@ -65,6 +82,11 @@ if (!function_exists('citysyncai_render_schema_block')) {
 
 if (!function_exists('citysyncai_render_combined')) {
     function citysyncai_render_combined($atts = []) {
+        $atts = shortcode_atts([
+            'city' => '',
+            'type' => get_option('citysyncai_content_type', 'overview'),
+            'provider' => get_option('citysyncai_ai_provider', 'gemini'),
+        ], $atts);
         return citysyncai_render_ai_block($atts) . citysyncai_render_schema_block($atts);
     }
 }
@@ -91,4 +113,8 @@ add_action('enqueue_block_editor_assets', function () {
 // 🔹 Activation Hook
 register_activation_hook(__FILE__, function () {
     update_option('citysyncai_onboarding_complete', false);
+    // Register post types and flush rewrite rules
+    citysyncai_register_city_post_type();
+    citysyncai_add_city_rewrite_rules();
+    flush_rewrite_rules();
 });
