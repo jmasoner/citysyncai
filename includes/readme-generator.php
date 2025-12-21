@@ -44,3 +44,9 @@ function citysyncai_generate_readme() {
 [citysyncai]              // Renders schema + AI content
 [citysyncai_block]        // Renders AI block only
 [citysyncai_schema]       // Renders schema block only
+```
+
+MD;
+
+    return $readme;
+}
