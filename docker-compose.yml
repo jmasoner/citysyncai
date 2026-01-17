@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: citysyncai-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      - DB_TYPE=postgres
+      - DB_POSTGRE_HOST=postgres
+      - DB_POSTGRE_PORT=5432
+      - DB_POSTGRE_DATABASE=${DB_NAME}
+      - DB_POSTGRE_USER=${DB_USER}
+      - DB_POSTGRE_PASSWORD=${DB_PASSWORD}
+      - GENERIC_TIMEZONE=America/Chicago
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - citysyncai
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: citysyncai-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+    networks:
+      - citysyncai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: citysyncai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_storage:/data
+    networks:
+      - citysyncai
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  n8n_storage:
+  postgres_storage:
+  redis_storage:
+
+networks:
+  citysyncai:
+    driver: bridge
