@@ -135,6 +135,8 @@ def main():
     parser.add_argument('--output', default='output/', help='Output directory')
     parser.add_argument('--zip', default='00000', help='ZIP code')
     parser.add_argument('--population', default='50,000+', help='Population estimate')
+    parser.add_argument('--use-ai-headline', action='store_true', help='Generate AI headline via DeepSeek')
+    parser.add_argument('--ai-headline', help='Use provided AI headline (if --use-ai-headline not set)')
     
     args = parser.parse_args()
     
@@ -148,6 +150,23 @@ def main():
             population=args.population
         )
         
+        # Generate or use AI headline if requested
+        if args.use_ai_headline:
+            try:
+                from ai_headline_generator import HeadlineGenerator
+                generator = HeadlineGenerator()
+                ai_headline, cost = generator.generate_headline(
+                    args.city, args.state, args.service, context
+                )
+                if not ai_headline.startswith("Error"):
+                    context['hero_headline'] = ai_headline
+                    logger.info(f"Generated AI headline: '{ai_headline}' (cost: ${cost:.6f})")
+            except Exception as e:
+                logger.warning(f"Could not generate AI headline: {e}")
+        elif args.ai_headline:
+            context['hero_headline'] = args.ai_headline
+            logger.info(f"Using provided headline: '{args.ai_headline}'")
+        
         content = renderer.render(context)
         
         # Generate output filename
@@ -157,11 +176,13 @@ def main():
         renderer.save_page(content, output_file)
         
         # Print summary
-        print(f"\n✓ Page rendered successfully!")
+        print(f"\nPage rendered successfully!")
         print(f"  City: {args.city}, {args.state}")
         print(f"  Service: {args.service}")
         print(f"  Output: {output_file}")
         print(f"  Size: {len(content)} bytes")
+        if args.use_ai_headline or args.ai_headline:
+            print(f"  Headline: {context.get('hero_headline', 'N/A')}")
         
     except FileNotFoundError as e:
         logger.error(f"Template file not found: {e}")
