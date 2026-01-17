@@ -1,14 +1,59 @@
-# WordPress plugin dev
-*.log
-*.zip
-*.tar.gz
-*.bak
-*.tmp
-*.swp
-.DS_Store
-node_modules/
-vendor/
+# Environment variables
 .env
-.idea/
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+output/
+*.log
+
+# IDE
 .vscode/
-__MACOSX/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Sensitive data
+*.pem
+*.key
+*.cert
+secrets/
+credentials/
+
+# Keep ARCHIVE folder but ignore old node_modules if they exist
+ARCHIVE/node_modules/
+ARCHIVE/*.log
+
+# Database
+*.db
+*.sqlite
+postgres_storage/
+redis_storage/
+
+# CDN/Storage
+S3_sync/
+cdn_cache/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Generated files (but track the generators)
+!PAGE_TEMPLATE_SPEC.md
+!N8N_WORKFLOW_SPEC.md
+!TECH_STACK.md
+!PROJECT_SCOPE.md

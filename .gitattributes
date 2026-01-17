@@ -1,9 +1,0 @@
-*.php text
-*.css text
-*.js text
-*.md text
-*.txt text
-*.html text
-README.md export-ignore
-.gitignore export-ignore
-.gitattributes export-ignore
