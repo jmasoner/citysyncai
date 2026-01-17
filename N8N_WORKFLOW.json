@@ -1,0 +1,264 @@
+{
+  "name": "ComBrokers - Landing Page Generator",
+  "description": "AI-powered workflow to generate city-specific landing pages with dynamic content",
+  "version": "1.0.0",
+  "createdAt": "2026-01-17",
+  "lastModified": "2026-01-17",
+  "tags": ["citysyncai", "landing-pages", "lead-generation", "ai-content"],
+  "nodes": [
+    {
+      "id": "1_trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "description": "Manually trigger page generation workflow (testing mode)",
+      "position": [100, 100],
+      "config": {
+        "note": "For production, replace with scheduled trigger (daily at 10 PM UTC)"
+      }
+    },
+    {
+      "id": "2_database_query",
+      "name": "Query Cities & Services",
+      "type": "n8n-nodes-base.postgres",
+      "description": "Fetch city+service combinations from PostgreSQL",
+      "position": [300, 100],
+      "inputs": ["1_trigger"],
+      "config": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id as city_id, c.name as city, c.state, c.population, c.zip_code, s.id as service_id, s.name as service_name FROM cities c CROSS JOIN services s WHERE c.status = 'active' AND s.status = 'active' LIMIT {{ $env.PAGE_BATCH_SIZE || 50 }};",
+        "connection": "PostgreSQL (n8n:5432)",
+        "returnType": "array"
+      },
+      "output": {
+        "description": "Array of objects with: city_id, city, state, population, service_id, service_name",
+        "example": [
+          {
+            "city_id": 1,
+            "city": "New York",
+            "state": "NY",
+            "population": "8,000,000",
+            "service_id": 1,
+            "service_name": "VoIP"
+          }
+        ]
+      }
+    },
+    {
+      "id": "3_weather_fetch",
+      "name": "Fetch Weather Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Get current weather conditions for local context",
+      "position": [500, 50],
+      "inputs": ["2_database_query"],
+      "config": {
+        "method": "GET",
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "qs": {
+          "q": "={{ $item().city }},{{ $item().state }}",
+          "appid": "={{ $env.OPENWEATHER_API_KEY }}",
+          "units": "imperial"
+        },
+        "authentication": "none",
+        "errorHandling": "continue"
+      },
+      "output": {
+        "temperature": "{{ $item().main.temp }}",
+        "description": "{{ $item().weather[0].description }}",
+        "icon": "{{ $item().weather[0].icon }}"
+      }
+    },
+    {
+      "id": "4_events_fetch",
+      "name": "Fetch Local Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Search for upcoming events in the city",
+      "position": [500, 150],
+      "inputs": ["2_database_query"],
+      "config": {
+        "method": "GET",
+        "url": "https://www.eventbriteapi.com/v3/events/search",
+        "qs": {
+          "q": "={{ $item().city }}",
+          "location.address": "={{ $item().city }},{{ $item().state }}",
+          "sort_by": "date",
+          "token": "={{ $env.EVENTBRITE_API_KEY }}"
+        },
+        "errorHandling": "continue"
+      },
+      "output": {
+        "events": "{{ $item().events.slice(0, 3) }}",
+        "count": "{{ $item().events.length }}"
+      }
+    },
+    {
+      "id": "5_chamber_info",
+      "name": "Chamber of Commerce Data",
+      "type": "n8n-nodes-base.set",
+      "description": "Add chamber/local business info (static for MVP)",
+      "position": [500, 250],
+      "inputs": ["2_database_query"],
+      "config": {
+        "data": {
+          "chamber_url": "{{ 'https://www.chamberofcommerce.com/' + $item().city.toLowerCase().replace(/ /g, '-') }}",
+          "established": "Data available in Phase 2",
+          "members": "TBD"
+        }
+      }
+    },
+    {
+      "id": "6_deepseek_content",
+      "name": "Generate Content with DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Generate AI-powered headlines and copy using DeepSeek",
+      "position": [700, 100],
+      "inputs": ["3_weather_fetch", "4_events_fetch", "5_chamber_info"],
+      "config": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "headers": {
+          "Authorization": "Bearer {{ $env.DEEPSEEK_API_KEY }}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "model": "deepseek-chat",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert copywriter for telecom service landing pages. Generate compelling, high-converting copy for local businesses. Return valid JSON only."
+            },
+            {
+              "role": "user",
+              "content": "Generate landing page content for a {{ $item().service_name }} service page in {{ $item().city }}, {{ $item().state }}.\n\nContext:\n- Population: {{ $item().population }}\n- Weather: {{ $item().temperature }}°F, {{ $item().description }}\n- Local events: {{ $item().events_count }}\n\nReturn JSON with fields: headline (max 60 chars), subheading (max 120 chars), cta_button_text (max 20 chars), benefits (array of 4 strings), faq_intro (1 sentence about common questions).\n\nMake it specific to {{ $item().city }}, not generic."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 500,
+          "top_p": 0.95
+        },
+        "errorHandling": "retry"
+      },
+      "retryConfig": {
+        "maxRetries": 3,
+        "waitBetweenRetries": 2000
+      },
+      "output": {
+        "headline": "{{ JSON.parse($item().choices[0].message.content).headline }}",
+        "subheading": "{{ JSON.parse($item().choices[0].message.content).subheading }}",
+        "cta_button_text": "{{ JSON.parse($item().choices[0].message.content).cta_button_text }}",
+        "benefits": "{{ JSON.parse($item().choices[0].message.content).benefits }}",
+        "faq_intro": "{{ JSON.parse($item().choices[0].message.content).faq_intro }}"
+      }
+    },
+    {
+      "id": "7_template_render",
+      "name": "Render HTML Template",
+      "type": "n8n-nodes-base.code",
+      "description": "Load base.html template and inject all variables",
+      "position": [900, 100],
+      "inputs": ["6_deepseek_content"],
+      "config": {
+        "language": "javascript",
+        "code": "const fs = require('fs');\nconst template = fs.readFileSync('/workspace/templates/base.html', 'utf8');\n\nconst context = {\n  page_id: Math.floor(Math.random() * 1000000),\n  page_title: `{{ $item().service_name }} Services in {{ $item().city }}, {{ $item().state }} | ComBrokers`,\n  page_url: `https://combrokers.com/pages/${ $item().city.toLowerCase().replace(/ /g, '-') }-${ $item().service_name.toLowerCase().replace(/ /g, '-') }-${ $item().state.toLowerCase() }/`,\n  city: `{{ $item().city }}`,\n  state: `{{ $item().state }}`,\n  zip_code: `{{ $item().zip_code || '00000' }}`,\n  population: `{{ $item().population }}`,\n  service_name: `{{ $item().service_name }}`,\n  service_type: `{{ $item().service_name.toLowerCase().replace(/ /g, '-') }}`,\n  hero_headline: `{{ $item().headline }}`,\n  hero_subheading: `{{ $item().subheading }}`,\n  cta_button_text: `{{ $item().cta_button_text }}`,\n  meta_description: `Get expert {{ $item().service_name }} services in {{ $item().city }}, {{ $item().state }}. ComBrokers provides reliable, affordable solutions with 24/7 support.`,\n  meta_keywords: `{{ $item().service_name }}, {{ $item().city }}, {{ $item().state }}, telecom, services`\n};\n\nlet html = template;\nfor (const [key, value] of Object.entries(context)) {\n  const regex = new RegExp(`\\\\{\\\\{\\\\s*${key}\\\\s*\\\\}\\\\}`, 'g');\n  html = html.replace(regex, value);\n}\n\nreturn [{ html, page_id: context.page_id, slug: context.page_title.split('|')[0].trim().toLowerCase().replace(/ /g, '-') }];"
+      }
+    },
+    {
+      "id": "8_quality_check",
+      "name": "Validate Quality",
+      "type": "n8n-nodes-base.code",
+      "description": "Verify HTML syntax, schema markup, and form presence",
+      "position": [1100, 100],
+      "inputs": ["7_template_render"],
+      "config": {
+        "language": "javascript",
+        "code": "const html = $item().html;\nconst issues = [];\n\n// Check 1: HTML structure\nif (!html.includes('<!DOCTYPE html>')) issues.push('Missing DOCTYPE');\nif (!html.includes('<title>')) issues.push('Missing title tag');\nif (!html.includes('<form')) issues.push('Missing form element');\n\n// Check 2: Schema markup\nconst schemas = html.match(/\"@type\":\\s*\"(LocalBusiness|Service|FAQPage)\"/g) || [];\nif (schemas.length < 2) issues.push(`Only ${schemas.length} schemas found (need 2+)`);\n\n// Check 3: Unreplaced variables\nconst unreplaced = html.match(/\\{\\{[^}]*\\}\\}/g);\nif (unreplaced && unreplaced.length > 0) {\n  issues.push(`${unreplaced.length} unreplaced variables: ${unreplaced.slice(0, 3).join(', ')}`);\n}\n\n// Check 4: Minimum content\nif (html.length < 15000) issues.push(`Page too small: ${html.length} bytes`);\n\nreturn [{ ...item, valid: issues.length === 0, issue_count: issues.length, issues }];"
+      }
+    },
+    {
+      "id": "9_file_storage",
+      "name": "Save to File System",
+      "type": "n8n-nodes-base.code",
+      "description": "Write HTML file to output directory",
+      "position": [1300, 100],
+      "inputs": ["8_quality_check"],
+      "config": {
+        "language": "javascript",
+        "code": "const fs = require('fs');\nconst path = require('path');\n\nconst slug = $item().slug;\nconst filename = `/workspace/output/${slug}.html`;\nconst dir = path.dirname(filename);\n\nif (!fs.existsSync(dir)) {\n  fs.mkdirSync(dir, { recursive: true });\n}\n\nfs.writeFileSync(filename, $item().html, 'utf8');\n\nreturn [{ \n  success: true, \n  filename, \n  size: $item().html.length,\n  slug,\n  page_id: $item().page_id\n}];"
+      }
+    },
+    {
+      "id": "10_database_update",
+      "name": "Update Pages Table",
+      "type": "n8n-nodes-base.postgres",
+      "description": "Record page metadata in database",
+      "position": [1500, 100],
+      "inputs": ["9_file_storage"],
+      "config": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pages (page_id, city_id, service_id, title, slug, status, created_at) VALUES ({{ $item().page_id }}, {{ $item().city_id }}, {{ $item().service_id }}, '{{ $item().page_title }}', '{{ $item().slug }}', 'generated', NOW());",
+        "connection": "PostgreSQL (n8n:5432)"
+      }
+    },
+    {
+      "id": "11_logging",
+      "name": "Log Generation Results",
+      "type": "n8n-nodes-base.postgres",
+      "description": "Track generation metrics and costs",
+      "position": [1500, 250],
+      "inputs": ["10_database_update"],
+      "config": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO generation_logs (page_id, city_id, service_id, status, api_calls, cost, execution_time_ms, created_at) VALUES ({{ $item().page_id }}, {{ $item().city_id }}, {{ $item().service_id }}, 'success', 3, 0.0001, 5000, NOW());",
+        "connection": "PostgreSQL (n8n:5432)"
+      }
+    },
+    {
+      "id": "12_error_handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.catch",
+      "description": "Catch and log any workflow errors",
+      "position": [1700, 250],
+      "errorInputs": ["all"],
+      "config": {
+        "continueOnError": true,
+        "onErrorMessage": "Page generation failed: {{ $error.message }}"
+      }
+    }
+  ],
+  "connections": {
+    "1_trigger": ["2_database_query"],
+    "2_database_query": ["3_weather_fetch", "4_events_fetch", "5_chamber_info"],
+    "3_weather_fetch": ["6_deepseek_content"],
+    "4_events_fetch": ["6_deepseek_content"],
+    "5_chamber_info": ["6_deepseek_content"],
+    "6_deepseek_content": ["7_template_render"],
+    "7_template_render": ["8_quality_check"],
+    "8_quality_check": ["9_file_storage"],
+    "9_file_storage": ["10_database_update"],
+    "10_database_update": ["11_logging"]
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "executionTimeout": 900,
+    "maxConcurrency": 1,
+    "retryOnError": true,
+    "retryDelay": 5000
+  },
+  "environment": {
+    "DEEPSEEK_API_KEY": "sk-xxxxx",
+    "OPENWEATHER_API_KEY": "xxxxx",
+    "EVENTBRITE_API_KEY": "xxxxx",
+    "PAGE_BATCH_SIZE": "50",
+    "DATABASE_CONNECTION": "postgresql://n8n:password@localhost:5432/n8n"
+  },
+  "deployment": {
+    "target": "Docker (self-hosted)",
+    "container": "n8nio/n8n:latest",
+    "port": 5678,
+    "authentication": "Basic (n8n default)"
+  },
+  "notes": {
+    "production": "For production deployment, implement: scheduled trigger (daily 10 PM), batch processing with offset/limit pagination, error notifications to Slack, cost tracking and budget alerts",
+    "scaling": "Parallel processing requires multiple n8n instances with job queue (Redis) for distribution",
+    "monitoring": "Track workflow execution time, API response times, and error rates in n8n UI metrics"
+  }
+}
