@@ -398,28 +398,37 @@
 <!-- Local Context Section -->
 <section class="local-context bg-light">
     <div class="container">
-        <h2>Why {{ city }}, {{ state }} Businesses Choose {{ service_name }}</h2>
+        <h2>{{ city }}, {{ state }} Business Infrastructure & Market Overview</h2>
         
         <div class="context-grid">
             <div class="context-card">
-                <h3>📊 Local Economy</h3>
-                <p>{{ city }} has <strong>{{ population }}</strong> residents and is a growing business hub.</p>
+                <h3>📊 Business Ecosystem</h3>
+                <p><strong>{{ total_businesses }}</strong> registered businesses in {{ city }}</p>
+                <p style="font-size: 0.9em; color: #666; margin-top: 8px;">{{ small_business_pct }}% are small businesses (1-50 employees) requiring reliable connectivity</p>
             </div>
             
             <div class="context-card">
-                <h3>🌤️ Reliable Service</h3>
-                <p>{{ city }} businesses need dependable {{ service_name }} services to stay competitive.</p>
+                <h3>🏢 Market Segments</h3>
+                <p>Top industries: {{ top_industries }}</p>
+                <p style="font-size: 0.9em; color: #666; margin-top: 8px;">Business growth: {{ business_growth_rate }}% YoY</p>
             </div>
             
             <div class="context-card">
-                <h3>💼 Best Support</h3>
-                <p>ComBrokers provides 24/7 expert support for {{ city }} businesses.</p>
+                <h3>🌐 Infrastructure Status</h3>
+                <p><strong>{{ fiber_availability_pct }}%</strong> fiber coverage in {{ city }}</p>
+                <p style="font-size: 0.9em; color: #666; margin-top: 8px;">Average business speed: {{ avg_business_speed }} Mbps</p>
             </div>
             
             <div class="context-card">
-                <h3>✅ Proven Results</h3>
-                <p>Trusted by thousands of businesses in {{ state }} and across America.</p>
+                <h3>🔗 Market Competition</h3>
+                <p>Major ISPs: {{ major_isps }}</p>
+                <p style="font-size: 0.9em; color: #666; margin-top: 8px;">Market gap: {{ market_gap }}</p>
             </div>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: white; border-left: 4px solid var(--primary); border-radius: 4px;">
+            <p style="font-size: 0.95em; line-height: 1.7;"><strong>Why ComBrokers for {{ city }} Businesses:</strong><br>
+            {{ city }} has {{ total_businesses }} businesses competing for growth. {{ fiber_availability_pct }}% have fiber access, but {{ market_gap }}. We specialize in serving underserved {{ city }} businesses with {{ service_name }} solutions that don't require waiting for infrastructure expansion. Get enterprise-grade {{ service_name }} today.</p>
         </div>
     </div>
 </section>

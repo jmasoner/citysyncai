@@ -1,0 +1,332 @@
+{
+  "name": "CitySync AI - Page Generator",
+  "nodes": [
+    {
+      "id": "0",
+      "name": "Trigger",
+      "type": "core:n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "1",
+      "name": "Set Batch Parameters",
+      "type": "core:n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        250,
+        100
+      ],
+      "parameters": {
+        "values": {
+          "object": [
+            {
+              "key": "cities",
+              "value": "Austin,New York,Los Angeles,Chicago,Houston"
+            },
+            {
+              "key": "services",
+              "value": "VoIP,Internet,Fiber,Network,Security"
+            },
+            {
+              "key": "batch_size",
+              "value": "50"
+            },
+            {
+              "key": "max_retries",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {},
+        "newPropertyName": "batch"
+      }
+    },
+    {
+      "id": "2",
+      "name": "Query Cities from DB",
+      "type": "core:n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        400,
+        100
+      ],
+      "parameters": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "{{$env.DB_USER}}",
+        "password": "{{$env.DB_PASSWORD}}",
+        "database": "{{$env.DB_NAME}}",
+        "query": "SELECT id, name, state FROM cities ORDER BY name LIMIT 50"
+      }
+    },
+    {
+      "id": "3",
+      "name": "For Each City/Service",
+      "type": "core:n8n-nodes-base.executeCode",
+      "typeVersion": 1,
+      "position": [
+        550,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\n// Get cities from database\nconst cities = items[0].json.rows || [];\nconst services = ['VoIP', 'Internet', 'Fiber', 'Network', 'Security'];\n\n// Generate combinations\nconst combinations = [];\nfor (const city of cities) {\n    for (const service of services) {\n        combinations.push({\n            city: city.name,\n            state: city.state,\n            service: service,\n            service_id: service.toLowerCase()\n        });\n    }\n}\n\nreturn combinations.map((combo, idx) => ({\n    json: combo,\n    pairedItem: { item: 0 }\n}));\n            "
+      }
+    },
+    {
+      "id": "4",
+      "name": "Fetch City Business Data",
+      "type": "core:n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        700,
+        100
+      ],
+      "parameters": {
+        "command": "python scripts/fetch_city_data.py {{$json.city}} {{$json.state}} {{$json.service}}"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Generate AI Headline",
+      "type": "core:n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        850,
+        100
+      ],
+      "parameters": {
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{$env.DEEPSEEK_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "model": "deepseek-chat",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert marketing copywriter specializing in B2B telecom services. Generate compelling, SEO-optimized headlines for landing pages."
+            },
+            {
+              "role": "user",
+              "content": "Generate a unique, compelling headline for a {{$json.service}} landing page in {{$json.city}}, {{$json.state}}. {{$json.market_gap}} Focus on business value, not generic marketing. Return ONLY the headline, no quotes."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 100
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Extract Headline",
+      "type": "core:n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        100
+      ],
+      "parameters": {
+        "values": {
+          "object": [
+            {
+              "key": "ai_headline",
+              "value": "={{$json.body.choices[0].message.content}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Render HTML Template",
+      "type": "core:n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1150,
+        100
+      ],
+      "parameters": {
+        "command": "python scripts/render_template.py --city {{$json.city}} --state {{$json.state}} --service {{$json.service}} --output output/ --template templates/base.html"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Validate HTML",
+      "type": "core:n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        100
+      ],
+      "parameters": {
+        "command": "python scripts/validate_schema.py"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Store Page Metadata",
+      "type": "core:n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        100
+      ],
+      "parameters": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "{{$env.DB_USER}}",
+        "password": "{{$env.DB_PASSWORD}}",
+        "database": "{{$env.DB_NAME}}",
+        "query": "INSERT INTO pages (city_id, service_id, title, slug, url, ai_headline, generated_at) VALUES ((SELECT id FROM cities WHERE name=:city AND state=:state), (SELECT id FROM services WHERE name=:service), :title, :slug, :url, :ai_headline, NOW()) ON CONFLICT DO NOTHING",
+        "parameters": {
+          "city": "{{$json.city}}",
+          "state": "{{$json.state}}",
+          "service": "{{$json.service}}",
+          "title": "{{$json.ai_headline}} | {{$json.city}}, {{$json.state}}",
+          "slug": "{{$json.city}}-{{$json.service}}-{{$json.state}}",
+          "url": "https://combrokers.com/pages/{{$json.city}}-{{$json.service}}-{{$json.state}}/",
+          "ai_headline": "{{$json.ai_headline}}"
+        }
+      }
+    },
+    {
+      "id": "10",
+      "name": "Update Counter",
+      "type": "core:n8n-nodes-base.executeCode",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\n// Increment counter in Redis\nconst current = items[0].json.counter || 0;\nreturn [{json: {counter: current + 1, status: 'success'}, pairedItem: {item: 0}}];\n            "
+      }
+    },
+    {
+      "id": "11",
+      "name": "Log Completion",
+      "type": "core:n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        100
+      ],
+      "parameters": {
+        "values": {
+          "object": [
+            {
+              "key": "status",
+              "value": "COMPLETED"
+            },
+            {
+              "key": "pages_generated",
+              "value": "={{$json.counter}}"
+            },
+            {
+              "key": "timestamp",
+              "value": "={{new Date().toISOString()}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "12",
+      "name": "Error Handler",
+      "type": "core:n8n-nodes-base.catch",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "errorMessage": "Page generation failed: {{$error.message}}"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "source_node": 0,
+      "target_node": 1,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 1,
+      "target_node": 2,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 2,
+      "target_node": 3,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 3,
+      "target_node": 4,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 4,
+      "target_node": 5,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 5,
+      "target_node": 6,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 6,
+      "target_node": 7,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 7,
+      "target_node": 8,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 8,
+      "target_node": 9,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 9,
+      "target_node": 10,
+      "source_index": 0,
+      "target_index": 0
+    },
+    {
+      "source_node": 10,
+      "target_node": 11,
+      "source_index": 0,
+      "target_index": 0
+    }
+  ],
+  "active": true,
+  "settings": {},
+  "tags": [
+    "citysyncai",
+    "page-generator",
+    "ai-content"
+  ],
+  "version": 1,
+  "createdAt": "2026-01-17T15:32:36.706627",
+  "updatedAt": "2026-01-17T15:32:36.706649"
+}
